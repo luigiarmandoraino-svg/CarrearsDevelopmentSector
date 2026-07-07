@@ -2,16 +2,8 @@ name: Daily Job Bot
 
 on:
   workflow_dispatch:
-    inputs:
-      max_sources:
-        description: "Maximum number of sources to check for manual testing. Use 0 for all sources."
-        required: false
-        default: "20"
-      send_all_available:
-        description: "Day-zero mode: send all currently visible eligible positions. Use true only for the first full baseline run."
-        required: false
-        default: "false"
   schedule:
+    # Every day at 04:00 UTC (06:00 Kigali). Adjust if you like.
     - cron: "0 4 * * *"
 
 permissions:
@@ -20,7 +12,7 @@ permissions:
 jobs:
   run-job-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -34,16 +26,13 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: |
-          pip install requests beautifulsoup4 python-dateutil pytz
+        run: pip install requests pytz
 
       - name: Run bot
         run: python -m jobbot.main
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          MAX_SOURCES: ${{ github.event.inputs.max_sources || '0' }}
-          SEND_ALL_AVAILABLE: ${{ github.event.inputs.send_all_available || 'false' }}
 
       - name: Save seen jobs database
         if: always()
