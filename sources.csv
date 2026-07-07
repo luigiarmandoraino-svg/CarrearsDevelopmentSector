@@ -1,0 +1,153 @@
+# Telegram Daily Job Bot — UN / IFI / Development Finance
+
+This bot checks official career pages and selected development-sector job sources every day, keeps only positions posted on the previous day, removes duplicates, and sends Telegram messages.
+
+## Filtering rules implemented
+
+The bot keeps:
+
+1. **International positions globally**.
+2. **National/local positions only if the duty station is in Europe**.
+
+The bot does **not** filter by your personal profile. It posts every position that passes the above rules.
+
+For each position it tries to extract:
+
+- Title
+- Organization
+- Location
+- Type: International / National-Local / Unknown likely international
+- Grade
+- Posted date
+- Deadline
+- Years of experience
+- Languages
+- Education
+- Requirement source section
+- Link
+
+## Important design choice: exact posted-yesterday mode
+
+`STRICT_POSTED_DATE=true` is enabled by default. This means:
+
+- If a vacancy has a reliable posted/publication date equal to yesterday, it is eligible.
+- If the bot cannot find a posted date, the vacancy is skipped and the source log records the issue.
+
+This avoids sending old vacancies, but it also means some career sites that hide publication dates may require a custom parser.
+
+## LinkedIn
+
+Do **not** scrape LinkedIn directly. LinkedIn prohibits unauthorized crawlers/bots/scrapers in its terms/help pages. The safe options are:
+
+1. Use the official employer career pages instead.
+2. Create LinkedIn job alerts manually and let the bot parse the email alerts you receive, if you later want that feature.
+3. Use an approved official LinkedIn partner/API product only if you obtain access.
+
+## Setup
+
+### 1. Create the Telegram bot
+
+1. Open Telegram and search for `@BotFather`.
+2. Send `/newbot`.
+3. Copy the bot token.
+4. Send a message to your new bot once.
+5. Get your chat ID using a Telegram bot such as `@userinfobot`, or by calling the Telegram `getUpdates` endpoint.
+
+### 2. Install locally
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+```
+
+Edit `.env`:
+
+```bash
+TELEGRAM_BOT_TOKEN=your_token
+TELEGRAM_CHAT_ID=your_chat_id
+DRY_RUN=false
+```
+
+For JavaScript-heavy career portals:
+
+```bash
+pip install playwright
+playwright install chromium
+USE_PLAYWRIGHT=true
+```
+
+### 3. Test without sending Telegram messages
+
+```bash
+DRY_RUN=true python -m jobbot.main --sources sources.csv --db jobbot.sqlite
+```
+
+To test a specific date:
+
+```bash
+DRY_RUN=true python -m jobbot.main --target-date 2026-07-06
+```
+
+### 4. Check source accessibility
+
+```bash
+python -m jobbot.check_sources --sources sources.csv --output source_access_report.csv
+```
+
+This produces a CSV with OK/BROKEN/ERROR status for each source.
+
+## Daily scheduling options
+
+### Option A — GitHub Actions
+
+This repository includes `.github/workflows/daily-job-bot.yml`.
+
+Add these GitHub repository secrets:
+
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+
+The workflow runs daily at **04:00 UTC**, which is **06:00 in Kigali/Rome summer time**.
+
+### Option B — VPS / Render / Railway / PythonAnywhere
+
+Run the command daily with cron:
+
+```bash
+0 6 * * * cd /path/to/telegram_job_bot && /path/to/.venv/bin/python -m jobbot.main --sources sources.csv --db jobbot.sqlite
+```
+
+## Deduplication
+
+Duplicates are removed using a normalized key based on:
+
+- Title
+- Organization
+- Location
+- Deadline
+
+This catches the same vacancy coming from several sources, such as an official career portal plus ReliefWeb or UNJobs.
+
+A SQLite database stores previously sent jobs so the bot does not repost old vacancies.
+
+## Improving accuracy source by source
+
+The bot starts with three parser types:
+
+- `reliefweb_api`
+- `generic_html`
+- `generic_playwright`
+- `rss`
+
+Many Workday, Oracle, Inspira, SuccessFactors and CSOD portals need a dedicated parser for perfect extraction. The `sources.csv` file has a `Parser` column so you can improve one source at a time without changing the whole bot.
+
+## Files
+
+- `sources.csv` — no-NGO source catalogue for UN/IFI/development finance/EU/development-sector sources.
+- `jobbot/main.py` — main daily bot.
+- `jobbot/check_sources.py` — source accessibility checker.
+- `jobbot/parsers/` — parser modules.
+- `jobbot/store.py` — SQLite deduplication and logs.
+- `jobbot/telegram.py` — Telegram message formatting/sending.

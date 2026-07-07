@@ -1,0 +1,16 @@
+# Telegram
+TELEGRAM_BOT_TOKEN=123456789:replace_me
+TELEGRAM_CHAT_ID=replace_me
+
+# Runtime
+TZ=Africa/Kigali
+SOURCE_CSV=sources.csv
+DB_PATH=jobbot.sqlite
+STRICT_POSTED_DATE=true
+DRY_RUN=false
+USE_PLAYWRIGHT=true
+MAX_SOURCES_PER_RUN=0
+MAX_DETAIL_PAGES_PER_SOURCE=25
+
+# Optional: include LinkedIn only through emails you receive, not scraping linkedin.com
+LINKEDIN_EMAIL_ALERTS=false
