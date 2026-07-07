@@ -1,0 +1,58 @@
+{
+  "_readme": [
+    "This file lists the organizations the bot checks.",
+    "Set 'enabled': true to turn a source on, false to skip it.",
+    "You do NOT need to understand the fields — send Nicolas (the bot builder)",
+    "an organization's careers-page URL and he will fill in the correct entry.",
+    "The bot reports every source's status to Telegram, so a wrong entry is obvious."
+  ],
+
+  "sources": [
+    {
+      "name": "The Global Fund",
+      "type": "workday",
+      "tenant": "theglobalfund",
+      "datacenter": "wd1",
+      "site": "External",
+      "enabled": true
+    },
+
+    {
+      "_comment": "TEMPLATE — Workday. Find the tenant/datacenter/site in the careers URL, e.g. https://TENANT.wd3.myworkdayjobs.com/SITE",
+      "name": "Example Workday Org",
+      "type": "workday",
+      "tenant": "tenantname",
+      "datacenter": "wd3",
+      "site": "External",
+      "enabled": false
+    },
+    {
+      "_comment": "TEMPLATE — Greenhouse. 'token' is the board name in boards.greenhouse.io/TOKEN",
+      "name": "Example Greenhouse Org",
+      "type": "greenhouse",
+      "token": "boardtoken",
+      "enabled": false
+    },
+    {
+      "_comment": "TEMPLATE — Lever. 'company' is the name in jobs.lever.co/COMPANY",
+      "name": "Example Lever Org",
+      "type": "lever",
+      "company": "companyname",
+      "enabled": false
+    },
+    {
+      "_comment": "TEMPLATE — SmartRecruiters. 'company' is the identifier in jobs.smartrecruiters.com/COMPANY",
+      "name": "Example SmartRecruiters Org",
+      "type": "smartrecruiters",
+      "company": "CompanyIdentifier",
+      "enabled": false
+    },
+    {
+      "_comment": "TEMPLATE — RSS/Atom feed published by an organization.",
+      "name": "Example RSS Org",
+      "type": "rss",
+      "url": "https://example.org/vacancies/feed.xml",
+      "enabled": false
+    }
+  ]
+}
