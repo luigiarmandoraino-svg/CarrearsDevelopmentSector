@@ -1,24 +1,28 @@
 name: Daily Job Bot
 
 on:
-permissions:
-  contents: write
   workflow_dispatch:
     inputs:
       max_sources:
         description: "Maximum number of sources to check for manual testing. Use 0 for all sources."
         required: false
-        default: "20"
+        default: "10"
   schedule:
     - cron: "0 4 * * *"
+
+permissions:
+  contents: write
 
 jobs:
   run-job-bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -34,6 +38,8 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MAX_SOURCES: ${{ github.event.inputs.max_sources || '0' }}
+
       - name: Save seen jobs database
         if: always()
         run: |
