@@ -1,9 +1,9 @@
 name: Daily Job Bot
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: "0 4 * * *"
-  workflow_dispatch:
 
 jobs:
   run-job-bot:
@@ -27,6 +27,3 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TZ: Africa/Kigali
-          STRICT_POSTED_DATE: "true"
-          DRY_RUN: "false"
