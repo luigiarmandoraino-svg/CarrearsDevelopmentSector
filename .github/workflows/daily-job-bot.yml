@@ -7,6 +7,10 @@ on:
         description: "Maximum number of sources to check for manual testing. Use 0 for all sources."
         required: false
         default: "20"
+      send_all_available:
+        description: "Day-zero mode: send all currently visible eligible positions. Use true only for the first full baseline run."
+        required: false
+        default: "false"
   schedule:
     - cron: "0 4 * * *"
 
@@ -39,6 +43,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           MAX_SOURCES: ${{ github.event.inputs.max_sources || '0' }}
+          SEND_ALL_AVAILABLE: ${{ github.event.inputs.send_all_available || 'false' }}
 
       - name: Save seen jobs database
         if: always()
