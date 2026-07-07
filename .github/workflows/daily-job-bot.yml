@@ -2,6 +2,11 @@ name: Daily Job Bot
 
 on:
   workflow_dispatch:
+    inputs:
+      max_sources:
+        description: "Maximum number of sources to check for manual testing. Use 0 for all sources."
+        required: false
+        default: "20"
   schedule:
     - cron: "0 4 * * *"
 
