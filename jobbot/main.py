@@ -21,6 +21,7 @@ TODAY = datetime.now(TIMEZONE).date()
 YESTERDAY = TODAY - timedelta(days=1)
 
 SEEN_JOBS_FILE = "seen_jobs.json"
+SEND_ALL_AVAILABLE = os.environ.get("SEND_ALL_AVAILABLE", "false").lower() == "true"
 
 EUROPE_KEYWORDS = [
     "albania", "andorra", "armenia", "austria", "belarus", "belgium",
@@ -279,12 +280,16 @@ def collect_reliefweb(source):
     params = {
         "appname": "telegram-job-bot",
         "profile": "list",
-        "limit": 100,
+        "limit": 1000 if SEND_ALL_AVAILABLE else 100,
         "sort[]": "date:desc",
-        "filter[field]": "date.created",
-        "filter[value][from]": f"{YESTERDAY}T00:00:00+00:00",
-        "filter[value][to]": f"{YESTERDAY}T23:59:59+00:00",
     }
+
+    if not SEND_ALL_AVAILABLE:
+        params.update({
+            "filter[field]": "date.created",
+            "filter[value][from]": f"{YESTERDAY}T00:00:00+00:00",
+            "filter[value][to]": f"{YESTERDAY}T23:59:59+00:00",
+        })
 
     response = requests.get(source["url"], params=params, timeout=30)
     response.raise_for_status()
@@ -324,7 +329,7 @@ def collect_reliefweb(source):
             "languages": extract_languages(text),
             "url": url,
             "date_status": "posted_date",
-            "newness_method": "Posted yesterday",
+            "newness_method": "Day-zero full list" if SEND_ALL_AVAILABLE else "Posted yesterday",
         })
 
     return jobs
@@ -398,7 +403,7 @@ def collect_html(source):
 
         # If a posted date exists, keep only jobs posted yesterday.
         # If no posted date exists, keep it for seen_jobs tracking.
-        if posted_date and posted_date != YESTERDAY:
+        if posted_date and posted_date != YESTERDAY and not SEND_ALL_AVAILABLE:
             continue
 
         location = "Not specified"
@@ -429,7 +434,7 @@ def collect_html(source):
             "languages": extract_languages(detail_text),
             "url": url,
             "date_status": "posted_date" if posted_date else "first_seen_tracking",
-            "newness_method": "Posted yesterday" if posted_date else "First seen by bot",
+            "newness_method": "Day-zero full list" if SEND_ALL_AVAILABLE else ("Posted yesterday" if posted_date else "First seen by bot"),
         })
 
     return jobs
@@ -466,6 +471,7 @@ def format_summary(
     already_seen_skipped,
     baseline_without_dates,
     jobs_sent,
+    run_mode,
 ):
     failed_text = "None"
 
@@ -478,6 +484,7 @@ def format_summary(
     return f"""<b>Daily Development Jobs – {YESTERDAY}</b>
 
 <b>Summary:</b>
+Run mode: {safe(run_mode)}
 Sources checked: {sources_checked}
 Sources successful: {sources_successful}
 Sources failed: {sources_failed}
@@ -510,6 +517,8 @@ def main():
     duplicates_removed = 0
     already_seen_skipped = 0
     baseline_without_dates = 0
+
+    run_mode = "DAY ZERO / SEND ALL AVAILABLE POSITIONS" if SEND_ALL_AVAILABLE else "Daily update"
 
     with open("sources.csv", newline="", encoding="utf-8") as file:
         sources = list(csv.DictReader(file))
@@ -552,7 +561,12 @@ def main():
                     duplicates_removed += 1
                     continue
 
-                # First run after adding seen_jobs.json:
+                if SEND_ALL_AVAILABLE:
+                    unique.add(key)
+                    all_jobs.append(job)
+                    continue
+
+                # First normal run after adding seen_jobs.json:
                 # Do not send all old vacancies from sources without posted dates.
                 # Save them as baseline instead.
                 if job_has_no_posted_date and is_first_seen_run:
@@ -590,12 +604,13 @@ def main():
         already_seen_skipped=already_seen_skipped,
         baseline_without_dates=baseline_without_dates,
         jobs_sent=jobs_sent,
+        run_mode=run_mode,
     )
 
     send_telegram(summary_message)
 
     if not all_jobs:
-        send_telegram("No new eligible positions found today.")
+        send_telegram("No eligible positions found in this run.")
         return
 
     for index, job in enumerate(all_jobs, start=1):
