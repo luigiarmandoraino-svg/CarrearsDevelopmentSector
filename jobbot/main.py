@@ -5,7 +5,7 @@ import json
 import os
 import re
 from datetime import datetime, timedelta
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import pytz
 import requests
@@ -21,6 +21,7 @@ TODAY = datetime.now(TIMEZONE).date()
 YESTERDAY = TODAY - timedelta(days=1)
 
 SEEN_JOBS_FILE = "seen_jobs.json"
+
 SEND_ALL_AVAILABLE = os.environ.get("SEND_ALL_AVAILABLE", "false").lower() == "true"
 
 EUROPE_KEYWORDS = [
@@ -34,8 +35,63 @@ EUROPE_KEYWORDS = [
     "slovenia", "spain", "sweden", "switzerland", "ukraine",
     "united kingdom", "uk", "rome", "geneva", "vienna", "brussels",
     "paris", "madrid", "berlin", "london", "copenhagen", "helsinki",
-    "stockholm", "oslo", "luxembourg", "the hague", "amsterdam",
-    "lisbon", "dublin", "prague", "warsaw", "budapest"
+    "stockholm", "oslo", "the hague", "amsterdam", "lisbon", "dublin",
+    "prague", "warsaw", "budapest", "turin", "brindisi", "florence",
+    "milan", "trieste"
+]
+
+ITALY_KEYWORDS = [
+    "italy", "rome", "roma", "turin", "torino", "brindisi", "florence",
+    "firenze", "milan", "milano", "trieste", "bologna", "venice", "venezia"
+]
+
+UN_ORGANIZATIONS = {
+    "un careers", "un secretariat", "undp", "unicef", "unhcr", "wfp",
+    "unfpa", "un women", "unops", "unv", "fao", "ifad", "ilo", "who",
+    "unesco", "unido", "icao", "imo", "itu", "upu", "wipo", "wmo",
+    "iaea", "iom", "ctbto", "opcw", "unaids", "unep", "un-habitat",
+    "ohchr", "ocha", "unodc", "unctad", "itc", "undrr", "unrwa",
+    "unssc", "unu", "unitar", "unicc", "unidir", "unrisd", "un tourism",
+    "uncdf"
+}
+
+JOB_TITLE_KEYWORDS = [
+    "officer", "specialist", "manager", "analyst", "assistant",
+    "associate", "advisor", "adviser", "expert", "consultant",
+    "coordinator", "director", "intern", "internship", "engineer",
+    "economist", "programme", "program", "project", "portfolio",
+    "investment", "operations", "procurement", "finance", "financial",
+    "monitoring", "evaluation", "partnership", "grant", "risk",
+    "climate", "agriculture", "agricultural", "rural", "development",
+    "policy", "technical", "head", "lead", "chief", "representative",
+    "administrator", "administrative", "legal", "hr", "human resources",
+    "communication", "data", "digital", "it ", "information technology"
+]
+
+REJECT_TITLE_KEYWORDS = [
+    "program expenses", "programme expenses", "expenses", "expense",
+    "annual report", "financial report", "publication", "publications",
+    "press release", "news", "story", "stories", "event", "events",
+    "donate", "donation", "procurement notice", "tender", "bid",
+    "request for proposal", "rfp", "request for quotation", "rfq",
+    "vendor", "supplier", "login", "register", "registration",
+    "candidate profile", "create profile", "talent community",
+    "job alert", "job alerts", "search jobs", "job search",
+    "all jobs", "open vacancies", "vacancies", "careers",
+    "career opportunities", "current opportunities", "current vacancies",
+    "work with us", "employment", "about us", "contact", "privacy",
+    "terms", "sitemap", "subscribe", "newsletter", "linkedin",
+    "facebook", "twitter", "instagram", "youtube", "home", "back to",
+    "learn more", "read more", "view all", "more information",
+    "salary scales", "benefits", "staff categories", "recruitment process"
+]
+
+GENERIC_URL_ENDINGS = [
+    "/careers", "/careers/", "/career", "/career/", "/jobs", "/jobs/",
+    "/vacancies", "/vacancies/", "/employment", "/employment/",
+    "/job-openings", "/job-openings/", "/listing", "/listing/",
+    "/current-vacancies", "/current-vacancies/", "/current-opportunities",
+    "/current-opportunities/", "/work-with-us", "/work-with-us/"
 ]
 
 
@@ -72,15 +128,147 @@ def send_telegram(message):
     response.raise_for_status()
 
 
-def extract_grade(text):
+def is_un_source(source):
+    org = clean(source.get("organization", "")).lower()
+    category = clean(source.get("category", "")).lower()
+    return org in UN_ORGANIZATIONS or category.startswith("un") or "un " in category or "un/" in category
+
+
+def is_in_europe(location):
+    location = (location or "").lower()
+    return any(keyword in location for keyword in EUROPE_KEYWORDS)
+
+
+def is_in_italy(location):
+    location = (location or "").lower()
+    return any(keyword in location for keyword in ITALY_KEYWORDS)
+
+
+def looks_like_generic_url(url, source_url=None):
+    if not url:
+        return True
+
+    parsed = urlparse(url)
+    path = parsed.path.rstrip("/").lower()
+    full = url.rstrip("/").lower()
+
+    if source_url and full == source_url.rstrip("/").lower():
+        return True
+
+    for ending in GENERIC_URL_ENDINGS:
+        if path == ending.rstrip("/"):
+            return True
+
+    return False
+
+
+def is_rejected_title(title):
+    title_l = clean(title).lower()
+
+    if not title_l:
+        return True
+
+    if len(title_l) < 5:
+        return True
+
+    if any(word in title_l for word in REJECT_TITLE_KEYWORDS):
+        return True
+
+    # Reject very long navigation/menu items.
+    if len(title_l) > 180:
+        return True
+
+    return False
+
+
+def title_has_job_signal(title):
+    title_l = f" {clean(title).lower()} "
+
+    if re.search(r"\b(P-[1-7]|D-[1-2]|NO-[A-D]|NOA|NOB|NOC|NOD|G-[1-7]|GS-[1-7]|IPSA-[0-9]+|ICS-[0-9]+)\b", title, re.IGNORECASE):
+        return True
+
+    return any(keyword in title_l for keyword in JOB_TITLE_KEYWORDS)
+
+
+def link_candidate_is_valid(title, href, source_url):
+    if is_rejected_title(title):
+        return False
+
+    absolute = urljoin(source_url, href or "")
+    if looks_like_generic_url(absolute, source_url):
+        return False
+
+    title_l = clean(title).lower()
+    href_l = (href or "").lower()
+
+    if title_has_job_signal(title):
+        return True
+
+    # URL-specific signals are allowed only when title is not generic.
+    if any(x in href_l for x in ["job", "careersection", "requisition", "vacancy", "position", "opening", "jobs/"]):
+        return True
+
+    return False
+
+
+def page_is_probably_job_detail(title, detail_text, url):
+    """
+    Stronger validation to avoid sending pages such as UNICEF/UNFPA programme
+    expense pages, generic career pages, reports, or navigation links.
+    """
+    title = clean(title)
+    detail_text = clean(detail_text)
+    combined = f"{title} {detail_text}".lower()
+
+    if is_rejected_title(title):
+        return False
+
+    if "program expenses" in combined or "programme expenses" in combined:
+        return False
+
+    if looks_like_generic_url(url):
+        return False
+
+    if not title_has_job_signal(title):
+        return False
+
+    # A real vacancy page should normally contain at least two of these signals.
+    signals = 0
+
+    if re.search(r"\b(deadline|closing date|application deadline|apply by|closing)\b", combined, re.IGNORECASE):
+        signals += 1
+
+    if re.search(r"\b(location|duty station|job location)\b", combined, re.IGNORECASE):
+        signals += 1
+
+    if re.search(r"\b(grade|level|contract type|appointment type|position type|post level|job level|contract level)\b", combined, re.IGNORECASE):
+        signals += 1
+
+    if re.search(r"\b(experience|professional experience|work experience|education|degree|languages|required qualifications|minimum requirements)\b", combined, re.IGNORECASE):
+        signals += 1
+
+    if re.search(r"\b(apply|application|candidate|requisition|vacancy)\b", combined, re.IGNORECASE):
+        signals += 1
+
+    return signals >= 2
+
+
+def extract_grade(title, text):
     """
     Conservative grade extraction.
 
-    The previous version was too aggressive and could capture a grade from another
-    vacancy on the same page. This version only extracts grade/level when it is
-    clearly labelled in the vacancy text.
+    First check the job title because it is specific to the vacancy.
+    Then check labelled grade/level fields in the vacancy text.
+    Do not guess from random grade mentions in a long career page.
     """
+    title = clean(title)
     text = clean(text)
+
+    grade_pattern = r"\b(P-[1-7]|D-[1-2]|NO-[A-D]|NOA|NOB|NOC|NOD|G-[1-7]|GS-[1-7]|IPSA-[0-9]+|ICS-[0-9]+)\b"
+
+    title_match = re.search(grade_pattern, title, re.IGNORECASE)
+    if title_match:
+        return title_match.group(1).upper()
 
     labelled_patterns = [
         r"(?:grade|level|post level|job level|position level|contract level)\s*:?\s*(P-[1-7]|D-[1-2]|NO-[A-D]|NOA|NOB|NOC|NOD|G-[1-7]|GS-[1-7]|IPSA-[0-9]+|ICS-[0-9]+)",
@@ -92,13 +280,78 @@ def extract_grade(text):
         if match:
             return match.group(1).upper()
 
-    if re.search(r"\b(internship|intern)\b", text, re.IGNORECASE):
+    contract = extract_contract_type(title, text)
+    if contract == "Internship":
         return "Internship"
-
-    if re.search(r"\b(consultancy|consultant)\b", text, re.IGNORECASE):
-        return "Consultant"
+    if contract == "Consultancy":
+        return "Consultancy"
 
     return "Not clearly specified"
+
+
+def extract_contract_type(title, text):
+    """
+    Contract/type extraction must be conservative.
+
+    Priority:
+    1. Job title signals.
+    2. Labelled fields such as Contract type / Appointment type.
+    3. Clear UN grade family.
+    """
+    title_l = clean(title).lower()
+    text_l = clean(text).lower()
+
+    if re.search(r"\b(internship|intern)\b", title_l):
+        return "Internship"
+
+    if re.search(r"\b(consultancy|consultant)\b", title_l):
+        return "Consultancy"
+
+    labelled_patterns = [
+        r"(?:contract type|appointment type|position type|job type|category)\s*:?\s*([A-Za-z \-/]{3,60})",
+        r"(?:staff category)\s*:?\s*([A-Za-z \-/]{3,60})",
+    ]
+
+    for pattern in labelled_patterns:
+        match = re.search(pattern, text_l, re.IGNORECASE)
+        if not match:
+            continue
+
+        value = clean(match.group(1)).lower()
+
+        if "consult" in value:
+            return "Consultancy"
+
+        if "intern" in value:
+            return "Internship"
+
+        if "national" in value:
+            return "National"
+
+        if "international" in value or "professional" in value:
+            return "International"
+
+        if "general service" in value or value.startswith("g-") or value.startswith("gs-"):
+            return "General Service"
+
+    combined_specific = f"{title_l} {text_l[:3000]}"
+
+    if re.search(r"\b(P-[1-7]|D-[1-2])\b", title, re.IGNORECASE):
+        return "International"
+
+    if re.search(r"\b(NO-[A-D]|NOA|NOB|NOC|NOD)\b", title, re.IGNORECASE):
+        return "National"
+
+    if re.search(r"\b(G-[1-7]|GS-[1-7])\b", title, re.IGNORECASE):
+        return "General Service"
+
+    if "internationally recruited" in combined_specific:
+        return "International"
+
+    if "locally recruited" in combined_specific or "local recruitment" in combined_specific:
+        return "National"
+
+    return "Unknown"
 
 
 def extract_deadline(text):
@@ -176,48 +429,26 @@ def extract_languages(text):
     return "Not clearly specified"
 
 
-def classify_type(title, location, text):
-    combined = f"{title} {location} {text}".lower()
+def should_include(job_type, location, grade, source):
+    """
+    Filtering requested by user:
+    - Post international positions globally.
+    - Post national/local positions only in Europe.
+    - Remove UN G/GS positions except if the duty station is in Italy.
+    - Keep consultancies globally.
+    - Keep unknown only if not clearly excluded, because many pages do not expose type.
+    """
+    grade_l = clean(grade).lower()
 
-    if any(x in combined for x in [
-        "international professional",
-        "international consultant",
-        "internationally recruited",
-        "international staff",
-        "p-1", "p-2", "p-3", "p-4", "p-5", "p-6", "p-7",
-        "d-1", "d-2"
-    ]):
-        return "International"
+    if is_un_source(source) and re.search(r"\b(g-[1-7]|gs-[1-7])\b", grade_l, re.IGNORECASE):
+        return is_in_italy(location)
 
-    if any(x in combined for x in [
-        "national consultant",
-        "national officer",
-        "locally recruited",
-        "local position",
-        "local recruitment",
-        "no-a", "no-b", "no-c", "no-d",
-        "noa", "nob", "noc", "nod"
-    ]):
-        return "National"
+    if job_type == "General Service":
+        if is_un_source(source):
+            return is_in_italy(location)
+        return is_in_europe(location)
 
-    if any(x in combined for x in ["consultant", "consultancy"]):
-        return "Consultancy"
-
-    return "Unknown"
-
-
-def is_in_europe(location):
-    location = (location or "").lower()
-    return any(keyword in location for keyword in EUROPE_KEYWORDS)
-
-
-def should_include(job_type, location):
-    # User's rule:
-    # - International positions globally
-    # - National/local positions only in Europe
-    # - Consultancies globally for now, because many sources do not clearly label national/international
-    # - Unknown globally for now, because many career pages do not expose type cleanly
-    if job_type in ["International", "Consultancy", "Unknown"]:
+    if job_type in ["International", "Consultancy", "Internship", "Unknown"]:
         return True
 
     if job_type == "National" and is_in_europe(location):
@@ -312,9 +543,13 @@ def collect_reliefweb(source):
         location = clean(f"{city}, {country}".strip(", ")) or "Not specified"
         text = clean(str(fields))
 
-        job_type = classify_type(title, location, text)
+        if is_rejected_title(title) or not title_has_job_signal(title):
+            continue
 
-        if not should_include(job_type, location):
+        job_type = extract_contract_type(title, text)
+        grade = extract_grade(title, text)
+
+        if not should_include(job_type, location, grade, source):
             continue
 
         jobs.append({
@@ -322,13 +557,13 @@ def collect_reliefweb(source):
             "organization": organization,
             "location": location,
             "type": job_type,
-            "grade": extract_grade(text),
-            "posted": str(YESTERDAY),
+            "grade": grade,
+            "posted": "Available now" if SEND_ALL_AVAILABLE else str(YESTERDAY),
             "deadline": extract_deadline(text),
             "years": extract_years(text),
             "languages": extract_languages(text),
             "url": url,
-            "date_status": "posted_date",
+            "date_status": "day_zero" if SEND_ALL_AVAILABLE else "posted_date",
             "newness_method": "Day-zero full list" if SEND_ALL_AVAILABLE else "Posted yesterday",
         })
 
@@ -358,21 +593,14 @@ def collect_html(source):
         title = clean(a.get_text(" ", strip=True))
         href = a.get("href")
 
-        if not title or len(title) < 5:
+        if not link_candidate_is_valid(title, href, source["url"]):
             continue
 
-        combined = f"{title} {href}".lower()
-
-        if any(word in combined for word in [
-            "vacancy", "career", "job", "position", "requisition",
-            "officer", "specialist", "manager", "consultant", "intern",
-            "expert", "advisor", "programme", "program", "project"
-        ]):
-            links.append((title, urljoin(source["url"], href)))
+        links.append((title, urljoin(source["url"], href)))
 
     seen = set()
 
-    for title, url in links[:30]:
+    for title, url in links[:40]:
         if url in seen:
             continue
 
@@ -391,6 +619,9 @@ def collect_html(source):
         except Exception:
             detail_text = page_text
 
+        if not page_is_probably_job_detail(title, detail_text, url):
+            continue
+
         posted_date = None
         posted_match = re.search(
             r"(?:posted|publication date|date posted|posting date|published|published on)\s*:?\s*([A-Za-z0-9, /\.-]{6,50})",
@@ -401,7 +632,7 @@ def collect_html(source):
         if posted_match:
             posted_date = parse_possible_date(posted_match.group(1))
 
-        # If a posted date exists, keep only jobs posted yesterday.
+        # If a posted date exists, keep only jobs posted yesterday unless Day Zero is enabled.
         # If no posted date exists, keep it for seen_jobs tracking.
         if posted_date and posted_date != YESTERDAY and not SEND_ALL_AVAILABLE:
             continue
@@ -417,9 +648,10 @@ def collect_html(source):
         if location_match:
             location = clean(location_match.group(1))
 
-        job_type = classify_type(title, location, detail_text)
+        job_type = extract_contract_type(title, detail_text)
+        grade = extract_grade(title, detail_text)
 
-        if not should_include(job_type, location):
+        if not should_include(job_type, location, grade, source):
             continue
 
         jobs.append({
@@ -427,13 +659,13 @@ def collect_html(source):
             "organization": source["organization"],
             "location": location,
             "type": job_type,
-            "grade": extract_grade(detail_text),
-            "posted": str(posted_date) if posted_date else "Not exposed by source",
+            "grade": grade,
+            "posted": "Available now" if SEND_ALL_AVAILABLE else (str(posted_date) if posted_date else "Not exposed by source"),
             "deadline": extract_deadline(detail_text),
             "years": extract_years(detail_text),
             "languages": extract_languages(detail_text),
             "url": url,
-            "date_status": "posted_date" if posted_date else "first_seen_tracking",
+            "date_status": "day_zero" if SEND_ALL_AVAILABLE else ("posted_date" if posted_date else "first_seen_tracking"),
             "newness_method": "Day-zero full list" if SEND_ALL_AVAILABLE else ("Posted yesterday" if posted_date else "First seen by bot"),
         })
 
@@ -454,10 +686,10 @@ Link: {safe(job['url'])}
 <b>Requirements summary:</b>
 • Years of experience: {safe(job['years'])}
 • Languages: {safe(job['languages'])}
-• Note: grade and experience are shown only when clearly labelled in the vacancy text.
+• Note: grade, type and experience are shown only when clearly supported by the vacancy title or labelled vacancy text.
 
 <b>Requirement source:</b>
-Extracted from the job announcement text where available.
+Extracted from the specific job announcement page where available.
 """
 
 
@@ -494,9 +726,15 @@ Already-seen jobs skipped: {already_seen_skipped}
 Baseline jobs saved without posting date: {baseline_without_dates}
 Jobs sent: {jobs_sent}
 
+<b>Quality controls:</b>
+• Generic career pages, reports, programme expense pages and navigation links are filtered out.
+• UN G/GS posts are excluded unless the duty station is in Italy.
+• Type, grade and experience are not guessed from unrelated page text.
+
 <b>How new jobs are detected:</b>
 • If the source shows a posted date: only jobs posted yesterday are sent.
 • If the source does not show a posted date: only jobs not seen in previous bot runs are sent.
+• In Day Zero mode: all currently visible eligible positions are sent once and saved as seen.
 
 <b>Failed sources:</b>
 {failed_text}
