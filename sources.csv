@@ -42,3 +42,47 @@ UNICC,UN System,https://www.unicc.org/working-with-icc/careers/,html
 UNIDIR,UN Institute,https://unidir.org/about/careers/,html
 UNRISD,UN Research Institute,https://www.unrisd.org/en/about/jobs,html
 UN Tourism,UN Specialized Agency,https://www.unwto.org/jobs,html
+organization,category,url,method
+ReliefWeb,Development Aggregator,https://api.reliefweb.int/v1/jobs,reliefweb
+UN Careers,UN Secretariat,https://careers.un.org/jobopening,html
+UNDP,UN Fund/Programme,https://www.undp.org/careers,html
+UNICEF,UN Fund/Programme,https://jobs.unicef.org/en-us/listing/,html
+UNHCR,UN Fund/Programme,https://www.unhcr.org/careers/work-with-us,html
+WFP,UN Fund/Programme,https://www.wfp.org/careers/job-openings,html
+UNFPA,UN Fund/Programme,https://www.unfpa.org/jobs,html
+UN Women,UN Fund/Programme,https://www.unwomen.org/en/about-us/employment,html
+UNOPS,UN Fund/Programme,https://jobs.unops.org/,html
+UNV,UN Programme,https://www.unv.org/become-un-volunteer,html
+FAO,UN Specialized Agency,https://jobs.fao.org/careersection/fao_external/jobsearch.ftl,html
+IFAD,UN Specialized Agency/IFI,https://www.ifad.org/en/careers,html
+ILO,UN Specialized Agency,https://jobs.ilo.org/,html
+WHO,UN Specialized Agency,https://careers.who.int/careersection/ex/jobsearch.ftl,html
+UNESCO,UN Specialized Agency,https://careers.unesco.org/,html
+UNIDO,UN Specialized Agency,https://careers.unido.org/,html
+ICAO,UN Specialized Agency,https://careers.icao.int/,html
+IMO,UN Specialized Agency,https://www.imo.org/en/About/Careers/Pages/Careers.aspx,html
+ITU,UN Specialized Agency,https://jobs.itu.int/,html
+UPU,UN Specialized Agency,https://www.upu.int/en/Universal-Postal-Union/About-UPU/Careers,html
+WIPO,UN Specialized Agency,https://wipo.taleo.net/careersection/wp_2/jobsearch.ftl,html
+WMO,UN Specialized Agency,https://erecruit.wmo.int/public/,html
+IAEA,UN Related Organization,https://www.iaea.org/about/employment,html
+IOM,UN Related Organization,https://recruit.iom.int/,html
+CTBTO,UN Related Organization,https://jobs.ctbto.org/,html
+OPCW,UN Related Organization,https://opcw-career.talent-soft.com/,html
+UNAIDS,UN Joint Programme,https://www.unaids.org/en/aboutunaids/workatunaids,html
+UNEP,UN Secretariat Programme,https://www.unep.org/about-un-environment-programme/careers,html
+UN-Habitat,UN Secretariat Programme,https://unhabitat.org/vacancies,html
+OHCHR,UN Secretariat Office,https://www.ohchr.org/en/about-us/careers,html
+OCHA,UN Secretariat Office,https://www.unocha.org/about-us/careers,html
+UNODC,UN Secretariat Office,https://www.unodc.org/unodc/en/about-unodc/employment.html,html
+UNCTAD,UN Secretariat Body,https://unctad.org/about/employment,html
+ITC,UN/WTO Joint Agency,https://intracen.org/about-us/work-with-us,html
+UNDRR,UN Secretariat Office,https://www.undrr.org/about-undrr/careers,html
+UNRWA,UN Agency,https://jobs.unrwa.org/,html
+UNSSC,UN System College,https://www.unssc.org/about/employment,html
+UNU,UN University,https://unu.edu/about/careers,html
+UNITAR,UN Institute,https://unitar.org/about/unitar/job-opportunities,html
+UNICC,UN System,https://www.unicc.org/working-with-icc/careers/,html
+UNIDIR,UN Institute,https://unidir.org/about/careers/,html
+UNRISD,UN Research Institute,https://www.unrisd.org/en/about/jobs,html
+UN Tourism,UN Specialized Agency,https://www.unwto.org/jobs,html
