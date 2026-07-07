@@ -365,7 +365,11 @@ def main():
 
     with open("sources.csv", newline="", encoding="utf-8") as file:
         sources = list(csv.DictReader(file))
+    max_sources = int(os.environ.get("MAX_SOURCES", "0") or "0")
 
+    if max_sources > 0:
+        sources = sources[:max_sources]
+        print(f"Development mode: checking only the first {max_sources} sources.")
     for source in sources:
         print(f"Checking {source['organization']}")
 
