@@ -1,5 +1,6 @@
 import csv
 import hashlib
+import json
 import os
 import re
 from datetime import datetime, timedelta
@@ -15,17 +16,24 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 TIMEZONE = pytz.timezone("Africa/Kigali")
-YESTERDAY = datetime.now(TIMEZONE).date() - timedelta(days=1)
+TODAY = datetime.now(TIMEZONE).date()
+YESTERDAY = TODAY - timedelta(days=1)
+
+SEEN_JOBS_FILE = "seen_jobs.json"
 
 EUROPE_KEYWORDS = [
-    "albania", "andorra", "austria", "belgium", "bulgaria", "croatia",
-    "cyprus", "czech", "denmark", "estonia", "finland", "france",
-    "germany", "greece", "hungary", "iceland", "ireland", "italy",
-    "latvia", "lithuania", "luxembourg", "malta", "netherlands",
-    "norway", "poland", "portugal", "romania", "slovakia", "slovenia",
-    "spain", "sweden", "switzerland", "ukraine", "united kingdom",
-    "uk", "rome", "geneva", "vienna", "brussels", "paris", "madrid",
-    "berlin", "london", "copenhagen", "helsinki", "stockholm", "oslo"
+    "albania", "andorra", "armenia", "austria", "belarus", "belgium",
+    "bosnia", "bulgaria", "croatia", "cyprus", "czech", "denmark",
+    "estonia", "finland", "france", "georgia", "germany", "greece",
+    "hungary", "iceland", "ireland", "italy", "kosovo", "latvia",
+    "liechtenstein", "lithuania", "luxembourg", "malta", "moldova",
+    "monaco", "montenegro", "netherlands", "norway", "poland",
+    "portugal", "romania", "san marino", "serbia", "slovakia",
+    "slovenia", "spain", "sweden", "switzerland", "ukraine",
+    "united kingdom", "uk", "rome", "geneva", "vienna", "brussels",
+    "paris", "madrid", "berlin", "london", "copenhagen", "helsinki",
+    "stockholm", "oslo", "luxembourg", "the hague", "amsterdam",
+    "lisbon", "dublin", "prague", "warsaw", "budapest"
 ]
 
 
@@ -37,7 +45,7 @@ def clean(text):
 
 def send_telegram(message):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("Missing Telegram secrets.")
+        print("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID.")
         print(message)
         return
 
@@ -68,7 +76,9 @@ def extract_grade(text):
         r"\bIPSA-[0-9]+\b",
         r"\bICS-[0-9]+\b",
         r"\bConsultant\b",
+        r"\bConsultancy\b",
         r"\bInternship\b",
+        r"\bIntern\b",
     ]
 
     for pattern in patterns:
@@ -81,8 +91,8 @@ def extract_grade(text):
 
 def extract_deadline(text):
     patterns = [
-        r"(deadline|closing date|application deadline|closing):?\s*([A-Za-z0-9, /\.-]{6,40})",
-        r"(apply by):?\s*([A-Za-z0-9, /\.-]{6,40})",
+        r"(deadline|closing date|application deadline|closing):?\s*([A-Za-z0-9, /\.-]{6,50})",
+        r"(apply by):?\s*([A-Za-z0-9, /\.-]{6,50})",
     ]
 
     for pattern in patterns:
@@ -94,23 +104,16 @@ def extract_deadline(text):
 
 
 def extract_years(text):
-    match = re.search(
-        r"(\d+)\+?\s+years?.{0,80}(experience|professional experience|work experience)",
-        text,
-        re.IGNORECASE,
-    )
+    patterns = [
+        r"(\d+)\+?\s+years?.{0,100}(experience|professional experience|work experience)",
+        r"(minimum|at least).{0,50}(\d+).{0,40}years?",
+        r"(\d+)\s+years?.{0,80}relevant experience",
+    ]
 
-    if match:
-        return clean(match.group(0))
-
-    match = re.search(
-        r"(minimum|at least).{0,40}(\d+).{0,30}years?",
-        text,
-        re.IGNORECASE,
-    )
-
-    if match:
-        return clean(match.group(0))
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return clean(match.group(0))
 
     return "Not clearly specified"
 
@@ -120,7 +123,7 @@ def extract_languages(text):
 
     for language in [
         "English", "French", "Spanish", "Arabic", "Russian",
-        "Chinese", "Portuguese", "Italian"
+        "Chinese", "Portuguese", "Italian", "German"
     ]:
         if re.search(language, text, re.IGNORECASE):
             found.append(language)
@@ -138,7 +141,8 @@ def classify_type(title, location, text):
         "international professional",
         "international consultant",
         "internationally recruited",
-        "p-1", "p-2", "p-3", "p-4", "p-5",
+        "international staff",
+        "p-1", "p-2", "p-3", "p-4", "p-5", "p-6", "p-7",
         "d-1", "d-2"
     ]):
         return "International"
@@ -148,6 +152,7 @@ def classify_type(title, location, text):
         "national officer",
         "locally recruited",
         "local position",
+        "local recruitment",
         "no-a", "no-b", "no-c", "no-d",
         "noa", "nob", "noc", "nod"
     ]):
@@ -160,11 +165,16 @@ def classify_type(title, location, text):
 
 
 def is_in_europe(location):
-    location = location.lower()
+    location = (location or "").lower()
     return any(keyword in location for keyword in EUROPE_KEYWORDS)
 
 
 def should_include(job_type, location):
+    # Main rule requested:
+    # - keep international jobs globally
+    # - keep national/local jobs only if located in Europe
+    # - keep consultancies globally for now, because many sources do not label national/international clearly
+    # - keep unknown jobs for now, but deduplication and date tracking will control repetition
     if job_type in ["International", "Consultancy", "Unknown"]:
         return True
 
@@ -174,17 +184,54 @@ def should_include(job_type, location):
     return False
 
 
-def normalize_id(title, organization, location):
-    raw = f"{title}|{organization}|{location}".lower()
+def normalize_id(title, organization, location, url=None):
+    # Use URL if available, because the same job title may appear in different countries/offices.
+    # Still include title/org/location to deduplicate across pages that use slightly different URLs.
+    raw = f"{title}|{organization}|{location}|{url or ''}".lower()
     raw = re.sub(r"[^a-z0-9]+", "", raw)
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
 def parse_possible_date(value):
+    if not value:
+        return None
+
     try:
         return dateparser.parse(value, fuzzy=True).date()
     except Exception:
         return None
+
+
+def load_seen_jobs():
+    if not os.path.exists(SEEN_JOBS_FILE):
+        return {}, True
+
+    try:
+        with open(SEEN_JOBS_FILE, "r", encoding="utf-8") as file:
+            return json.load(file), False
+    except Exception:
+        return {}, True
+
+
+def save_seen_jobs(seen_jobs):
+    with open(SEEN_JOBS_FILE, "w", encoding="utf-8") as file:
+        json.dump(seen_jobs, file, indent=2, ensure_ascii=False)
+
+
+def remember_job(seen_jobs, key, job):
+    if key not in seen_jobs:
+        seen_jobs[key] = {
+            "first_seen": str(TODAY),
+            "last_seen": str(TODAY),
+            "title": job.get("title"),
+            "organization": job.get("organization"),
+            "location": job.get("location"),
+            "url": job.get("url"),
+        }
+    else:
+        seen_jobs[key]["last_seen"] = str(TODAY)
+
+    return seen_jobs
 
 
 def collect_reliefweb(source):
@@ -217,7 +264,8 @@ def collect_reliefweb(source):
             [x.get("name", "") for x in fields.get("country", [])]
         )
 
-        location = country or "Not specified"
+        city = fields.get("city", "")
+        location = clean(f"{city}, {country}".strip(", ")) or "Not specified"
         text = clean(str(fields))
 
         job_type = classify_type(title, location, text)
@@ -236,6 +284,7 @@ def collect_reliefweb(source):
             "years": extract_years(text),
             "languages": extract_languages(text),
             "url": url,
+            "date_status": "posted_date",
         })
 
     return jobs
@@ -271,7 +320,8 @@ def collect_html(source):
 
         if any(word in combined for word in [
             "vacancy", "career", "job", "position", "requisition",
-            "officer", "specialist", "manager", "consultant", "intern"
+            "officer", "specialist", "manager", "consultant", "intern",
+            "expert", "advisor", "programme", "program", "project"
         ]):
             links.append((title, urljoin(source["url"], href)))
 
@@ -289,6 +339,7 @@ def collect_html(source):
                 timeout=30,
                 headers={"User-Agent": "Mozilla/5.0"},
             )
+            detail.raise_for_status()
             detail_text = clean(
                 BeautifulSoup(detail.text, "html.parser").get_text(" ")
             )
@@ -297,7 +348,7 @@ def collect_html(source):
 
         posted_date = None
         posted_match = re.search(
-            r"(posted|publication date|date posted):?\s*([A-Za-z0-9, /\.-]{6,40})",
+            r"(posted|publication date|date posted|posting date|published|published on):?\s*([A-Za-z0-9, /\.-]{6,50})",
             detail_text,
             re.IGNORECASE,
         )
@@ -305,13 +356,16 @@ def collect_html(source):
         if posted_match:
             posted_date = parse_possible_date(posted_match.group(2))
 
-        if posted_date != YESTERDAY:
+        # New rule:
+        # If a posted date exists, keep only jobs posted yesterday.
+        # If no posted date exists, keep it for seen_jobs tracking.
+        if posted_date and posted_date != YESTERDAY:
             continue
 
         location = "Not specified"
 
         location_match = re.search(
-            r"(location|duty station):?\s*([A-Za-z, /\.-]{3,80})",
+            r"(location|duty station|duty stations|job location):?\s*([A-Za-z, /\.-]{3,100})",
             detail_text,
             re.IGNORECASE,
         )
@@ -330,11 +384,12 @@ def collect_html(source):
             "location": location,
             "type": job_type,
             "grade": extract_grade(detail_text),
-            "posted": str(YESTERDAY),
+            "posted": str(posted_date) if posted_date else "Not exposed by source",
             "deadline": extract_deadline(detail_text),
             "years": extract_years(detail_text),
             "languages": extract_languages(detail_text),
             "url": url,
+            "date_status": "posted_date" if posted_date else "first_seen_tracking",
         })
 
     return jobs
@@ -358,6 +413,7 @@ Link: {job['url']}
 Extracted from the job announcement text where available.
 """
 
+
 def format_summary(
     sources_checked,
     sources_successful,
@@ -365,6 +421,8 @@ def format_summary(
     failed_sources,
     jobs_collected,
     duplicates_removed,
+    already_seen_skipped,
+    baseline_without_dates,
     jobs_sent,
 ):
     failed_text = "None"
@@ -383,7 +441,13 @@ Sources successful: {sources_successful}
 Sources failed: {sources_failed}
 Jobs collected before deduplication: {jobs_collected}
 Duplicates removed: {duplicates_removed}
+Already-seen jobs skipped: {already_seen_skipped}
+Baseline jobs saved without posting date: {baseline_without_dates}
 Jobs sent: {jobs_sent}
+
+<b>How new jobs are detected:</b>
+• If the source shows a posted date: only jobs posted yesterday are sent.
+• If the source does not show a posted date: only jobs not seen in previous bot runs are sent.
 
 <b>Failed sources:</b>
 {failed_text}
@@ -394,15 +458,25 @@ def main():
     all_jobs = []
     unique = set()
 
+    seen_jobs, is_first_seen_run = load_seen_jobs()
+
     sources_checked = 0
     sources_successful = 0
     sources_failed = 0
     failed_sources = []
     jobs_collected = 0
     duplicates_removed = 0
+    already_seen_skipped = 0
+    baseline_without_dates = 0
 
     with open("sources.csv", newline="", encoding="utf-8") as file:
         sources = list(csv.DictReader(file))
+
+    max_sources = int(os.environ.get("MAX_SOURCES", "0") or "0")
+
+    if max_sources > 0:
+        sources = sources[:max_sources]
+        print(f"Development mode: checking only the first {max_sources} sources.")
 
     for source in sources:
         source_name = source.get("organization", "Unknown source")
@@ -424,13 +498,31 @@ def main():
                     job["title"],
                     job["organization"],
                     job["location"],
+                    job.get("url"),
                 )
 
-                if key not in unique:
-                    unique.add(key)
-                    all_jobs.append(job)
-                else:
+                job_has_no_posted_date = job.get("date_status") == "first_seen_tracking"
+                already_seen = key in seen_jobs
+
+                remember_job(seen_jobs, key, job)
+
+                if key in unique:
                     duplicates_removed += 1
+                    continue
+
+                # First run after adding seen_jobs.json:
+                # Do not send all old vacancies from sources without posted dates.
+                # Save them as baseline instead.
+                if job_has_no_posted_date and is_first_seen_run:
+                    baseline_without_dates += 1
+                    continue
+
+                if already_seen:
+                    already_seen_skipped += 1
+                    continue
+
+                unique.add(key)
+                all_jobs.append(job)
 
         except Exception as error:
             sources_failed += 1
@@ -442,6 +534,8 @@ def main():
             failed_sources.append((source_name, error_text))
             print(f"Error in {source_name}: {error}")
 
+    save_seen_jobs(seen_jobs)
+
     jobs_sent = len(all_jobs)
 
     summary_message = format_summary(
@@ -451,15 +545,15 @@ def main():
         failed_sources=failed_sources,
         jobs_collected=jobs_collected,
         duplicates_removed=duplicates_removed,
+        already_seen_skipped=already_seen_skipped,
+        baseline_without_dates=baseline_without_dates,
         jobs_sent=jobs_sent,
     )
 
     send_telegram(summary_message)
 
     if not all_jobs:
-        send_telegram(
-            "No new eligible positions found, or the sources checked did not expose posted dates."
-        )
+        send_telegram("No new eligible positions found today.")
         return
 
     for index, job in enumerate(all_jobs, start=1):
@@ -468,3 +562,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
