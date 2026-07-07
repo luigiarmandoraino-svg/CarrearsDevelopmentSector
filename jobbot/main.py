@@ -358,26 +358,66 @@ Link: {job['url']}
 Extracted from the job announcement text where available.
 """
 
+def format_summary(
+    sources_checked,
+    sources_successful,
+    sources_failed,
+    failed_sources,
+    jobs_collected,
+    duplicates_removed,
+    jobs_sent,
+):
+    failed_text = "None"
+
+    if failed_sources:
+        failed_text = "\n".join([f"• {name}: {error}" for name, error in failed_sources[:10]])
+
+        if len(failed_sources) > 10:
+            failed_text += f"\n• Plus {len(failed_sources) - 10} more failed source(s)."
+
+    return f"""<b>Daily Development Jobs – {YESTERDAY}</b>
+
+<b>Summary:</b>
+Sources checked: {sources_checked}
+Sources successful: {sources_successful}
+Sources failed: {sources_failed}
+Jobs collected before deduplication: {jobs_collected}
+Duplicates removed: {duplicates_removed}
+Jobs sent: {jobs_sent}
+
+<b>Failed sources:</b>
+{failed_text}
+"""
+
 
 def main():
     all_jobs = []
     unique = set()
 
+    sources_checked = 0
+    sources_successful = 0
+    sources_failed = 0
+    failed_sources = []
+    jobs_collected = 0
+    duplicates_removed = 0
+
     with open("sources.csv", newline="", encoding="utf-8") as file:
         sources = list(csv.DictReader(file))
-    max_sources = int(os.environ.get("MAX_SOURCES", "0") or "0")
 
-    if max_sources > 0:
-        sources = sources[:max_sources]
-        print(f"Development mode: checking only the first {max_sources} sources.")
     for source in sources:
-        print(f"Checking {source['organization']}")
+        source_name = source.get("organization", "Unknown source")
+        sources_checked += 1
+
+        print(f"Checking {source_name}")
 
         try:
-            if source["method"] == "reliefweb":
+            if source.get("method") == "reliefweb":
                 jobs = collect_reliefweb(source)
             else:
                 jobs = collect_html(source)
+
+            sources_successful += 1
+            jobs_collected += len(jobs)
 
             for job in jobs:
                 key = normalize_id(
@@ -389,21 +429,38 @@ def main():
                 if key not in unique:
                     unique.add(key)
                     all_jobs.append(job)
+                else:
+                    duplicates_removed += 1
 
         except Exception as error:
-            print(f"Error in {source['organization']}: {error}")
+            sources_failed += 1
+            error_text = str(error)
+
+            if len(error_text) > 120:
+                error_text = error_text[:120] + "..."
+
+            failed_sources.append((source_name, error_text))
+            print(f"Error in {source_name}: {error}")
+
+    jobs_sent = len(all_jobs)
+
+    summary_message = format_summary(
+        sources_checked=sources_checked,
+        sources_successful=sources_successful,
+        sources_failed=sources_failed,
+        failed_sources=failed_sources,
+        jobs_collected=jobs_collected,
+        duplicates_removed=duplicates_removed,
+        jobs_sent=jobs_sent,
+    )
+
+    send_telegram(summary_message)
 
     if not all_jobs:
         send_telegram(
-            f"Daily Development Jobs – {YESTERDAY}\n\n"
             "No new eligible positions found, or the sources checked did not expose posted dates."
         )
         return
-
-    send_telegram(
-        f"Daily Development Jobs – {YESTERDAY}\n\n"
-        f"Found {len(all_jobs)} new eligible position(s)."
-    )
 
     for index, job in enumerate(all_jobs, start=1):
         send_telegram(format_job(index, job))
