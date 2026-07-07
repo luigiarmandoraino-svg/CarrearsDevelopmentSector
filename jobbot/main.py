@@ -1,5 +1,6 @@
 import csv
 import hashlib
+import html
 import json
 import os
 import re
@@ -43,6 +44,11 @@ def clean(text):
     return re.sub(r"\s+", " ", str(text)).strip()
 
 
+def safe(text):
+    """Escape text for Telegram HTML mode."""
+    return html.escape(str(text or ""), quote=False)
+
+
 def send_telegram(message):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID.")
@@ -66,66 +72,101 @@ def send_telegram(message):
 
 
 def extract_grade(text):
-    patterns = [
-        r"\bP-[1-7]\b",
-        r"\bD-[1-2]\b",
-        r"\bNO-[A-D]\b",
-        r"\bNOA\b|\bNOB\b|\bNOC\b|\bNOD\b",
-        r"\bG-[1-7]\b",
-        r"\bGS-[1-7]\b",
-        r"\bIPSA-[0-9]+\b",
-        r"\bICS-[0-9]+\b",
-        r"\bConsultant\b",
-        r"\bConsultancy\b",
-        r"\bInternship\b",
-        r"\bIntern\b",
+    """
+    Conservative grade extraction.
+
+    The previous version was too aggressive and could capture a grade from another
+    vacancy on the same page. This version only extracts grade/level when it is
+    clearly labelled in the vacancy text.
+    """
+    text = clean(text)
+
+    labelled_patterns = [
+        r"(?:grade|level|post level|job level|position level|contract level)\s*:?\s*(P-[1-7]|D-[1-2]|NO-[A-D]|NOA|NOB|NOC|NOD|G-[1-7]|GS-[1-7]|IPSA-[0-9]+|ICS-[0-9]+)",
+        r"(?:grade|level|post level|job level|position level|contract level)\s*:?\s*([A-Z]{1,4}-?[0-9]{1,2})",
     ]
 
-    for pattern in patterns:
+    for pattern in labelled_patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            return match.group(0)
+            return match.group(1).upper()
 
-    return "Not specified"
+    if re.search(r"\b(internship|intern)\b", text, re.IGNORECASE):
+        return "Internship"
+
+    if re.search(r"\b(consultancy|consultant)\b", text, re.IGNORECASE):
+        return "Consultant"
+
+    return "Not clearly specified"
 
 
 def extract_deadline(text):
+    text = clean(text)
+
     patterns = [
-        r"(deadline|closing date|application deadline|closing):?\s*([A-Za-z0-9, /\.-]{6,50})",
-        r"(apply by):?\s*([A-Za-z0-9, /\.-]{6,50})",
+        r"(?:deadline|closing date|application deadline|closing)\s*:?\s*([A-Za-z0-9, /\.-]{6,50})",
+        r"(?:apply by)\s*:?\s*([A-Za-z0-9, /\.-]{6,50})",
     ]
 
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            return clean(match.group(2))
+            return clean(match.group(1))
 
     return "Not specified"
 
 
 def extract_years(text):
-    patterns = [
-        r"(\d+)\+?\s+years?.{0,100}(experience|professional experience|work experience)",
-        r"(minimum|at least).{0,50}(\d+).{0,40}years?",
-        r"(\d+)\s+years?.{0,80}relevant experience",
+    """
+    Conservative experience extraction.
+
+    It only searches sentences that explicitly mention experience and returns a
+    short requirement-like phrase. If unclear, it returns 'Not clearly specified'
+    rather than guessing.
+    """
+    text = clean(text)
+
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    experience_sentences = [
+        sentence for sentence in sentences
+        if re.search(
+            r"\b(experience|professional experience|work experience|relevant experience)\b",
+            sentence,
+            re.IGNORECASE,
+        )
     ]
 
-    for pattern in patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            return clean(match.group(0))
+    candidates = []
+
+    for sentence in experience_sentences:
+        patterns = [
+            r"(?:minimum|at least|required).{0,60}?(\d+)\+?\s+years?.{0,120}",
+            r"(\d+)\+?\s+years?.{0,120}?(?:experience|professional experience|work experience|relevant experience)",
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, sentence, re.IGNORECASE)
+            if match:
+                candidate = clean(match.group(0))
+                if len(candidate) <= 220:
+                    candidates.append(candidate)
+
+    if candidates:
+        candidates = sorted(set(candidates), key=len)
+        return candidates[0]
 
     return "Not clearly specified"
 
 
 def extract_languages(text):
+    text = clean(text)
     found = []
 
     for language in [
         "English", "French", "Spanish", "Arabic", "Russian",
         "Chinese", "Portuguese", "Italian", "German"
     ]:
-        if re.search(language, text, re.IGNORECASE):
+        if re.search(rf"\b{language}\b", text, re.IGNORECASE):
             found.append(language)
 
     if found:
@@ -170,11 +211,11 @@ def is_in_europe(location):
 
 
 def should_include(job_type, location):
-    # Main rule requested:
-    # - keep international jobs globally
-    # - keep national/local jobs only if located in Europe
-    # - keep consultancies globally for now, because many sources do not label national/international clearly
-    # - keep unknown jobs for now, but deduplication and date tracking will control repetition
+    # User's rule:
+    # - International positions globally
+    # - National/local positions only in Europe
+    # - Consultancies globally for now, because many sources do not clearly label national/international
+    # - Unknown globally for now, because many career pages do not expose type cleanly
     if job_type in ["International", "Consultancy", "Unknown"]:
         return True
 
@@ -185,8 +226,6 @@ def should_include(job_type, location):
 
 
 def normalize_id(title, organization, location, url=None):
-    # Use URL if available, because the same job title may appear in different countries/offices.
-    # Still include title/org/location to deduplicate across pages that use slightly different URLs.
     raw = f"{title}|{organization}|{location}|{url or ''}".lower()
     raw = re.sub(r"[^a-z0-9]+", "", raw)
     return hashlib.sha256(raw.encode()).hexdigest()
@@ -285,6 +324,7 @@ def collect_reliefweb(source):
             "languages": extract_languages(text),
             "url": url,
             "date_status": "posted_date",
+            "newness_method": "Posted yesterday",
         })
 
     return jobs
@@ -348,15 +388,14 @@ def collect_html(source):
 
         posted_date = None
         posted_match = re.search(
-            r"(posted|publication date|date posted|posting date|published|published on):?\s*([A-Za-z0-9, /\.-]{6,50})",
+            r"(?:posted|publication date|date posted|posting date|published|published on)\s*:?\s*([A-Za-z0-9, /\.-]{6,50})",
             detail_text,
             re.IGNORECASE,
         )
 
         if posted_match:
-            posted_date = parse_possible_date(posted_match.group(2))
+            posted_date = parse_possible_date(posted_match.group(1))
 
-        # New rule:
         # If a posted date exists, keep only jobs posted yesterday.
         # If no posted date exists, keep it for seen_jobs tracking.
         if posted_date and posted_date != YESTERDAY:
@@ -365,13 +404,13 @@ def collect_html(source):
         location = "Not specified"
 
         location_match = re.search(
-            r"(location|duty station|duty stations|job location):?\s*([A-Za-z, /\.-]{3,100})",
+            r"(?:location|duty station|duty stations|job location)\s*:?\s*([A-Za-z, /\.-]{3,100})",
             detail_text,
             re.IGNORECASE,
         )
 
         if location_match:
-            location = clean(location_match.group(2))
+            location = clean(location_match.group(1))
 
         job_type = classify_type(title, location, detail_text)
 
@@ -390,24 +429,27 @@ def collect_html(source):
             "languages": extract_languages(detail_text),
             "url": url,
             "date_status": "posted_date" if posted_date else "first_seen_tracking",
+            "newness_method": "Posted yesterday" if posted_date else "First seen by bot",
         })
 
     return jobs
 
 
 def format_job(index, job):
-    return f"""<b>{index}. {job['title']} – {job['organization']}</b>
+    return f"""<b>{index}. {safe(job['title'])} – {safe(job['organization'])}</b>
 
-Location: {job['location']}
-Type: {job['type']}
-Grade: {job['grade']}
-Posted: {job['posted']}
-Deadline: {job['deadline']}
-Link: {job['url']}
+Location: {safe(job['location'])}
+Type: {safe(job['type'])}
+Grade: {safe(job['grade'])}
+Posted: {safe(job['posted'])}
+Newness method: {safe(job.get('newness_method', 'Not specified'))}
+Deadline: {safe(job['deadline'])}
+Link: {safe(job['url'])}
 
 <b>Requirements summary:</b>
-• Years of experience: {job['years']}
-• Languages: {job['languages']}
+• Years of experience: {safe(job['years'])}
+• Languages: {safe(job['languages'])}
+• Note: grade and experience are shown only when clearly labelled in the vacancy text.
 
 <b>Requirement source:</b>
 Extracted from the job announcement text where available.
@@ -428,7 +470,7 @@ def format_summary(
     failed_text = "None"
 
     if failed_sources:
-        failed_text = "\n".join([f"• {name}: {error}" for name, error in failed_sources[:10]])
+        failed_text = "\n".join([f"• {safe(name)}: {safe(error)}" for name, error in failed_sources[:10]])
 
         if len(failed_sources) > 10:
             failed_text += f"\n• Plus {len(failed_sources) - 10} more failed source(s)."
@@ -562,4 +604,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
