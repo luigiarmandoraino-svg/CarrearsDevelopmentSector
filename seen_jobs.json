@@ -4460,17 +4460,17 @@
   "The Global Fund:/job/Geneva/Portfolio-Officer--Public-Resource-Mobilization---GL-C---Defined-Duration-until-December-2029_JR4658-1": {
     "title": "Portfolio Officer, Public Resource Mobilization - GL C - Defined Duration until December 2029",
     "first_seen": "2026-08-07",
-    "last_seen": "2026-08-12"
+    "last_seen": "2026-08-13"
   },
   "The Global Fund:/job/Geneva/Replenishment-Logistics--Pledges-and-Contributions-Analyst---GL-B---Defined-Duration-until-December-2029_JR4659-1": {
     "title": "Replenishment Logistics, Pledges and Contributions Analyst - GL B - Defined Duration until December 2029",
     "first_seen": "2026-08-07",
-    "last_seen": "2026-08-12"
+    "last_seen": "2026-08-13"
   },
   "The Global Fund:/job/Geneva/Manager--Private-Resource-Mobilization---GL-E---Defined-Duration-until-December-2029_JR4654-1": {
     "title": "Manager, Private Resource Mobilization - GL E - Defined Duration until December 2029",
     "first_seen": "2026-08-07",
-    "last_seen": "2026-08-12"
+    "last_seen": "2026-08-13"
   },
   "The Global Fund:/job/Geneva/Specialist--Advocacy-and-Partnerships--Africa---GL-D---Defined-Duration-until-December-2029_JR4661-1": {
     "title": "Specialist, Advocacy and Partnerships, Africa - GL D - Defined Duration until December 2029",
@@ -4478,6 +4478,7 @@
   },
   "The Global Fund:/job/Geneva/Executive-Assistant--Legal-and-Governance-Department---GL-B---Defined-Duration-until-December-2028---French-Speaking_JR4667": {
     "title": "Executive Assistant, Legal and Governance Department - GL B - Defined Duration until December 2028 - French Speaking",
-    "first_seen": "2026-08-12"
+    "first_seen": "2026-08-12",
+    "last_seen": "2026-08-13"
   }
 }
