@@ -4599,54 +4599,73 @@
   "The Global Fund:/job/Geneva/Advisor--Partnerships---GL-D---Defined-Duration-until-December-2029_JR4724-1": {
     "title": "Advisor, Partnerships - GL D - Defined Duration until December 2029",
     "first_seen": "2026-11-15",
-    "last_seen": "2026-11-20"
+    "last_seen": "2026-11-23"
   },
   "The Global Fund:/job/Geneva/Associate-Specialist--Modelling---Reporting---GL-C---Defined-Duration-until-December-2029_JR4723-1": {
     "title": "Associate Specialist, Modelling & Reporting - GL C - Defined Duration until December 2029",
     "first_seen": "2026-11-15",
-    "last_seen": "2026-11-20"
+    "last_seen": "2026-11-23"
   },
   "The Global Fund:/job/Geneva/Associate-Specialist--Procurement-Systems---Service-Transformation---GL-C---Defined-Duration-until-December-2028_JR4786": {
     "title": "Associate Specialist, Procurement Systems & Service Transformation - GL C - Defined Duration until December 2028",
     "first_seen": "2026-11-15",
-    "last_seen": "2026-11-20"
+    "last_seen": "2026-11-23"
   },
   "The Global Fund:/job/Geneva/Specialist--Design--Optimization-and-Operations-Management---GL-D---Defined-Duration-until-December-2029_JR4721-1": {
     "title": "Specialist, Design, Optimization and Operations Management - GL D - Defined Duration until December 2029",
     "first_seen": "2026-11-15",
-    "last_seen": "2026-11-20"
+    "last_seen": "2026-11-23"
   },
   "The Global Fund:/job/Geneva/Specialist--Non-Global-Fund-Financed-Procurement-Performance-Management---Reporting---GL-D---Defined-Duration-until-December-2028_JR4785": {
     "title": "Specialist, Non-Global Fund Financed Procurement Performance Management & Reporting - GL D - Defined Duration until December 2028",
     "first_seen": "2026-11-15",
-    "last_seen": "2026-11-20"
+    "last_seen": "2026-11-23"
   },
   "The Global Fund:/job/Geneva/Legal-Counsel---GL-D---Temporary-until-December-2027_JR4802-1": {
     "title": "Legal Counsel - GL D - Temporary until December 2027",
-    "first_seen": "2026-11-20"
+    "first_seen": "2026-11-20",
+    "last_seen": "2026-11-23"
   },
   "The Global Fund:/job/Geneva/Specialist--New-Product-Introduction---Integration--ICSC--Supply-Operations---GL-D---Defined-Duration-until-December-2029_JR4768": {
     "title": "Specialist, New Product Introduction & Integration, ICSC, Supply Operations - GL D - Defined Duration until December 2029",
-    "first_seen": "2026-11-20"
+    "first_seen": "2026-11-20",
+    "last_seen": "2026-11-23"
   },
   "The Global Fund:/job/Geneva/Specialist--ICSC-Digital-Public-Goods--Supply-Operations---GL-D---Defined-Duration-until-December-2029_JR4769": {
     "title": "Specialist, ICSC Digital Public Goods, Supply Operations - GL D - Defined Duration until December 2029",
-    "first_seen": "2026-11-20"
+    "first_seen": "2026-11-20",
+    "last_seen": "2026-11-23"
   },
   "The Global Fund:/job/Geneva/Specialist--Sustainable-ICSC-Financing--Supply-Operations---GL-D---Defined-Duration-until-December-2029_JR4807": {
     "title": "Specialist, Sustainable ICSC Financing, Supply Operations - GL D - Defined Duration until December 2029",
-    "first_seen": "2026-11-20"
+    "first_seen": "2026-11-20",
+    "last_seen": "2026-11-23"
   },
   "The Global Fund:/job/Geneva/Specialist--In-Country-Supply-Chain---Design-and-Delivery-Models--Supply-Operations---GL-D---Defined-Duration-until-December-2029_JR4806": {
     "title": "Specialist, In-Country Supply Chain – Design and Delivery Models, Supply Operations - GL D - Defined Duration until December 2029",
-    "first_seen": "2026-11-20"
+    "first_seen": "2026-11-20",
+    "last_seen": "2026-11-23"
   },
   "The Global Fund:/job/Geneva/Manager--Pre-Financing-Facility--NGFP--Finance---Administration---GL-E---Defined-Duration-until-December-2028_JR4796": {
     "title": "Manager, Pre-Financing Facility, NGFP, Finance & Administration - GL E - Defined Duration until December 2028",
-    "first_seen": "2026-11-20"
+    "first_seen": "2026-11-20",
+    "last_seen": "2026-11-23"
   },
   "The Global Fund:/job/Geneva/Program-Delivery-Specialist--Sustainability-and-Transition--GMD---GL-D---Temporary-until-December-2027---French-Speaking_JR4791": {
     "title": "Program Delivery Specialist, Sustainability and Transition, GMD - GL D - Temporary until December 2027 - French Speaking",
-    "first_seen": "2026-11-20"
+    "first_seen": "2026-11-20",
+    "last_seen": "2026-11-23"
+  },
+  "The Global Fund:/job/Geneva/Auditor--Assurance---GL-C---Defined-Duration-until-December-2029_JR4787": {
+    "title": "Auditor, Assurance - GL C - Defined Duration until December 2029 (2 positions)",
+    "first_seen": "2026-11-23"
+  },
+  "The Global Fund:/job/Geneva/Implementation-Specialist--Integration---Quality-of-Services---GL-D---Defined-Duration-until-December-2029--French-Speaking-_JR4808": {
+    "title": "Implementation Specialist, Integration & Quality of Services - GL D - Defined Duration until December 2029 (French Speaking)",
+    "first_seen": "2026-11-23"
+  },
+  "The Global Fund:/job/Geneva/Specialist--Risk-Management---NGFP-Pre-Financing-and-Fiduciary-Risk--Ethics---Risk-Department---GL-D---Defined-Duration-until-December-2028_JR4801": {
+    "title": "Specialist, Risk Management – NGFP Pre-Financing and Fiduciary Risk, Ethics & Risk Department - GL D - Defined Duration until December 2028",
+    "first_seen": "2026-11-23"
   }
 }
